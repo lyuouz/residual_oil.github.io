@@ -1,0 +1,36 @@
+---
+title: "Residual Oil Conversion and Air Pollution in New York City"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+---
+
+## Background
+
+
+
+
+## Data Source
+
+To model the impact of fuel conversion on air pollutants, these data were used in the analysis:
+
+### New York City Air Community Survey (NYCCAS)
+
+Air pollution data in New York City were obtained from [NYCCAS](http://data.cityofnewyork.us/Environment/NYCCAS-Air-Pollution-Rasters/q68s-8qxv), which were raster files containing annual average predicted surface of air pollutants at 300 m resolution. Annual average PM2.5 and winter average SO2 were used because they were thought to be the major pollutants from heating oil combustion. 
+
+*  PM2.5 and SO2 concentrations were averaged at the census tract level using zonal statistics, resulting in 2167 data points.  
+*  The absolute and relative difference between concentrations in 2011 and 2016 were used as the outcome variables in the model.  
+*  Because the NYC Clean Heat Program was enforced in 2012, data in these two years served as comparison before and after policy implementation. 
+
+
+## Analysis
+
+The analysis of this project is documented [here](analysis.html).
+
+
+## Visualization
+
+Click here to see the magic [plots](viz.html)!
+
+

@@ -1,0 +1,20 @@
+---
+title: "Residual Oil"
+output: 
+  flexdashboard::flex_dashboard:
+    theme: flatly
+    social: menu
+    source_code: embed
+runtime: shiny
+---
+
+```{r setup, include = FALSE}
+library(leaflet)
+library(flexdashboard)
+library(tidyverse)
+library(rmarkdown)
+```
+
+Column {.sidebar}
+----------------------------------------------------------------
+

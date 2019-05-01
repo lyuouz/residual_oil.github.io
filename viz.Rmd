@@ -1,0 +1,402 @@
+---
+title: "Visualization"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+---
+
+This page presents visualization of the residual oil project.
+
+```{r setup, include = FALSE}
+library(tidyverse)
+library(sf)
+library(RColorBrewer)
+library(classInt)
+library(maps)
+library(maptools)
+library(ggpubr)
+library(ggsn)
+library(patchwork)
+library(ggspatial)
+library(leaflet)
+library(BAMMtools)
+library(plotly)
+```
+
+## EDA and visualization
+
+### Air pollution: PM~2.5~ and SO~2~
+
+The data comes from [NYCCAS](https://data.cityofnewyork.us/Environment/NYCCAS-Air-Pollution-Rasters/q68s-8qxv). I am comparing data in 2011, which is the year before implementation of the Clean Heat Program, and year 2016, which is the year by which all heating oil #6 should be converted.
+
+The pollutants of interest are PM~2.5~ and SO~2~. Here I imported the data and plotted the spatial distribution in 2011 and 2016 and the changes for these two pollutants.
+
+```{r include = FALSE}
+# data import
+nyc_tract <- st_read(dsn = '/Users/zhanglvou/Desktop/GoMailman/research/number_boilers/fuel_data/data/so2_abs_lag', layer = 'model_so2_abs_lag') %>% 
+  rename(
+    'PM2.5_2011' = 'm__2012',
+    'PM2.5_2016' = 'm__2016',
+    'SO2_2011' = 'm_2_2012',
+    'SO2_2016' = 'm_2_2016',
+    'SO2_change' = 'so2_dff',
+    'PM2.5_change' = 'pm_diff',
+    'yearbuilt' = 'avg_yer'
+  ) %>% 
+  as_Spatial()
+
+
+```
+
+```{r warning = FALSE, include = FALSE}
+# convert and join
+nyc_tract@data$id <- rownames(nyc_tract@data)
+gpclibPermit()
+nyc_tract.fort <- broom::tidy(nyc_tract, region="id")
+tract_plot <- plyr::join(nyc_tract.fort, nyc_tract@data, by="id")
+
+```
+
+```{r eval = FALSE}
+# pm in 2011
+pm_12_plot <- ggplot(tract_plot) +
+  aes(long, lat, group = group, fill=cut_number(m__2012, 5)) +
+  geom_polygon() +
+  coord_equal() + 
+  scale_fill_brewer(name="Quantile", palette="Blues") +
+  labs(
+    title = 'PM2.5, 2011, ug/m3',
+    x = '',
+    y = ''
+  ) +
+  north(tract_plot) +
+  theme_bw() + theme(legend.position = 'none')
+
+# pm in 2016
+pm_16_plot <- ggplot(tract_plot) +
+  aes(long, lat, group=group, fill=cut_number(m__2016, 5)) +
+  geom_polygon() +
+  coord_equal() +
+  scale_fill_brewer(name="Quantile", palette="Blues") +
+  labs(
+    title = str_c('PM2.5, 2016, ug/m3'),
+    x = '',
+    y = ''
+  ) +
+  north(tract_plot) +
+  theme_bw() + theme(legend.position = 'none')
+
+# reduction in pm
+pm_diff_plot <- ggplot(tract_plot) +
+  aes(long, lat, group=group, fill=cut_number(pm_diff, 5)) +
+  geom_polygon() +
+  coord_equal() +
+  scale_fill_brewer(name="Quantile", palette="Blues") +
+  labs(
+    title = str_c('PM2.5 (2011-2016),ug/m3'),
+    x = '',
+    y = ''
+  ) +
+  north(tract_plot) +
+  theme_bw() + theme(legend.position = 'none')
+
+# relative difference
+pm_rdiff_plot <- ggplot(tract_plot) +
+  aes(long, lat, group=group, fill=cut_number(pm_rdff, 5)) +
+  geom_polygon() +
+  coord_equal() +
+  scale_fill_brewer(name="Quantile", palette="Blues") +
+  labs(
+    title = str_c('PM2.5 (2011-2016), relative'),
+    x = '',
+    y = '',
+    caption = 'Data source: NYCCAS'
+  ) +
+  north(tract_plot) +
+  theme_bw() + theme(legend.position = 'none')
+
+
+```
+
+```{r eval = FALSE}
+# combine
+(pm_12_plot + pm_16_plot)/(pm_diff_plot + pm_rdiff_plot)
+
+
+```
+
+
+
+#### PM2.5
+
+```{r}
+
+popup_pm <- str_c('<b>GEOID: </b>', nyc_tract$geoid, '<br>',
+               '<b>PM2.5 change: </b>', round(nyc_tract$PM2.5_change, digits = 2))
+
+pal_pm <- colorQuantile('Greens', NULL, n = 5)
+leaflet() %>% 
+  addProviderTiles(providers$CartoDB.Positron) %>% 
+  addPolygons(data = nyc_tract,
+              fillColor = ~pal_pm(PM2.5_change),
+              color = 'grey',
+              weight = 1,
+              fillOpacity = 0.8,
+              popup = popup_pm,
+              highlight = highlightOptions(
+    weight = 4,
+    color = "#666",
+    fillOpacity = 0.3,
+    bringToFront = TRUE)) %>% 
+   addLegend(data = nyc_tract,
+     pal = pal_pm, 
+             values = ~nyc_tract$PM2.5_change, opacity = 0.7, title = NULL,
+    position = "bottomright")
+
+
+
+
+```
+
+#### SO2
+
+
+I made a similar plot to show the changes in SO2 from 2012 to 2016. In fact, reduction.
+
+```{r}
+popup_so2 <- str_c('<b>GEOID: </b>', nyc_tract$geoid, '<br>',
+               '<b>SO2 change: </b>', round(nyc_tract$SO2_change, digits = 2))
+
+pal_so2 <- colorQuantile('Blues', NULL, n = 5)
+leaflet() %>% 
+  addProviderTiles(providers$CartoDB.Positron) %>% 
+  addPolygons(data = nyc_tract,
+              fillColor = ~pal_so2(SO2_change),
+              color = 'grey',
+              weight = 1,
+              fillOpacity = 0.8,
+              popup = popup_so2,
+              highlight = highlightOptions(
+    weight = 4,
+    color = "#666",
+    fillOpacity = 0.3,
+    bringToFront = TRUE)) %>% 
+   addLegend(data = nyc_tract,
+     pal = pal_so2, 
+             values = ~nyc_tract$SO2_change, opacity = 0.7, title = NULL,
+    position = "bottomright")
+
+
+
+
+```
+
+
+
+
+
+These plots show that:  
+
+*  In general, PM~2.5~ has reduced across the city, as showed in the quantile legends.  
+*  in both 2011 and 2016, PM~2.5~ is very clustered in Manhattan, South Bronx and Part of Queens.  
+*  Reduction of air pollution is clustered in Northern Manhattan and the Bronx.  
+
+
+```{r eval = FALSE}
+# pm in 2011
+so2_12_plot <- ggplot(tract_plot) +
+  aes(long, lat, group = group, fill=cut_number(m_2_2012, 5)) +
+  geom_polygon() +
+  coord_equal() + 
+  scale_fill_brewer(name="Quantile", palette="Greens") +
+  labs(
+    title = 'SO2, 2011',
+    x = '',
+    y = ''
+  ) +
+  north(tract_plot) +
+  theme_bw() + theme(legend.position = 'none') +
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank(),
+        axis.title.y=element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks.y=element_blank()
+        )
+
+# pm in 2016
+so2_16_plot <- ggplot(tract_plot) +
+  aes(long, lat, group=group, fill=cut_number(m_2_2016, 5)) +
+  geom_polygon() +
+  coord_equal() +
+  scale_fill_brewer(name="Quantile", palette="Greens") +
+  labs(
+    title = 'SO2, 2016',
+    x = '',
+    y = ''
+  ) +
+  north(tract_plot) +
+  theme_bw() + theme(legend.position = 'none') +
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank(),
+        axis.title.y=element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks.y=element_blank()
+        )
+
+so2_diff_plot <- ggplot(tract_plot) +
+  aes(long, lat, group = group, fill=cut_number(so2_dff, 5)) +
+  geom_polygon() +
+  coord_equal() + 
+  scale_fill_brewer(name="Quantile", palette="Greens") +
+  labs(
+    title = 'Reduction in SO2, 2011-2016',
+    x = '',
+    y = ''
+  ) +
+  north(tract_plot) +
+  theme_bw() + theme(legend.position = 'none') +
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank(),
+        axis.title.y=element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks.y=element_blank()
+        )
+
+
+# reduction in pms
+so2_rdiff_plot <- ggplot(tract_plot) +
+  aes(long, lat, group=group, fill=cut_number(s2_rdff, 5)) +
+  geom_polygon() +
+  coord_equal() +
+  scale_fill_brewer(name="Quantile", palette="Greens") +
+  labs(
+    title = 'Reduction in SO2, relative',
+    x = '',
+    y = '',
+    caption = 'Data source: NYCCAS'
+  ) +
+  north(tract_plot) +
+  theme_bw() + theme(legend.position = 'none') + 
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank(),
+        axis.title.y=element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks.y=element_blank()
+        )
+
+```
+
+```{r eval = FALSE}
+# combine
+(so2_12_plot + so2_16_plot)/(so2_diff_plot + so2_rdiff_plot)
+```
+
+
+```{r eval = FALSE}
+ro2_breaks <- getJenksBreaks(nyc_tract@data$d_ro2, 5)
+ro2_change <- ggplot(tract_plot) +
+  aes(long, lat, group = group, fill=cut(d_ro2, breaks = c(-6, -1, 0, 1, 6, 40, 106, 159), include.lowest = TRUE)) +
+  geom_polygon() +
+  coord_equal() +
+  scale_fill_brewer(name="Quantile", palette = "RdBu", direction = -1) +
+  labs(
+    title = 'Changes in fuel oil #2'
+  ) +
+  north(tract_plot) +
+  theme_bw() +
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank(),
+        axis.title.y=element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks.y=element_blank()
+        )
+
+ro4_breaks <- getJenksBreaks(nyc_tract@data$d_ro4, 5)
+ro4_change <- ggplot(tract_plot) +
+  aes(long, lat, group = group, fill=cut(d_ro2, breaks = c(-31,-1, 0, 14, 46, 137, 305), include.lowest = TRUE)) +
+  geom_polygon() +
+  coord_equal() +
+  scale_fill_brewer(name="Quantile", palette = "RdBu", direction = -1) +
+  labs(
+    title = 'Changes in fuel oil #4'
+  ) +
+  north(tract_plot) +
+  theme_bw() +
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank(),
+        axis.title.y=element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks.y=element_blank()
+        )
+  
+ro6_breaks <- getJenksBreaks(nyc_tract@data$d_ro6, 5)
+ro6_change <- ggplot(tract_plot) +
+  aes(long, lat, group = group, fill = cut(d_ro6, breaks = c(-69, -1, 0, 6, 47, 130, 248), include.lowest = TRUE)) +
+  geom_polygon() +
+  coord_equal() +
+  scale_fill_brewer(name="Quantile", palette = "RdBu", direction = -1) +
+  labs(
+    title = 'Changes in fuel oil #6'a
+  ) +
+  north(tract_plot) +
+  theme_bw() +
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank(),
+        axis.title.y=element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks.y=element_blank()
+        )
+
+
+ng_breaks <- getJenksBreaks(nyc_tract@data$d_ng, 5)
+ng_change <- ggplot(tract_plot) +
+  aes(long, lat, group = group, fill = cut(d_ng, breaks = c(-482, -13, -1, 0,  138))) +
+  geom_polygon() +
+  coord_equal() +
+  scale_fill_brewer(name="Quantile", palette = "RdBu", direction = -1) +
+  labs(
+    title = 'Changes in natural gas'
+  ) +
+  north(tract_plot) +
+  theme_bw() +
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank(),
+        axis.title.y=element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks.y=element_blank()
+        )
+
+
+
+
+```
+
+### Spatial Durbin
+
+To run the durbin model, I need to exclude some missing rows in the dataset
+
+```{r}
+
+
+
+
+```
+
+
+
+
+
+
+
+
+
+
