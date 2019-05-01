@@ -10,6 +10,13 @@ output:
 
 The project is based on the NYC Clean Heat Program. See [link](https://www.nyccleanheat.org/) here.
 
+<img src='/Users/zhanglvou/Desktop/GoMailman/spring_2019/gis/final_project/residual_oil.github.io/Residual_oil.github.io/img/boiler_plume.jpg' style="width:100%">
+
+These are the fuel oil that are of interest, including #2, #4 and #6, higher numbers means the oil is more dirty and produces more air pollutants.
+
+<img src="/Users/zhanglvou/Desktop/GoMailman/spring_2019/gis/final_project/residual_oil.github.io/Residual_oil.github.io/img/oil.jpg" style="width:75%">
+
+
 
 ## Data Source
 

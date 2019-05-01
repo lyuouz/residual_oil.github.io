@@ -389,6 +389,7 @@ ng_change <- ggplot(tract_plot) +
 
 ```
 
+## Analysis
 
 ### Linear regression
 
