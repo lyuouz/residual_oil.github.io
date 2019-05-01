@@ -593,8 +593,26 @@ leaflet() %>%
     color = "#666",
     fillOpacity = 0.3,
     bringToFront = TRUE))
+```
 
+```{r}
+popup_ro6 <- str_c('<b>GEOID: </b>', model_tract_sp$geoid, '<br>',
+               '<b>Coefficient of #RO6 : </b>', round(gwr_so2$SDF$d_ro6, digits = 2))
 
+pal_ro6 <- colorQuantile('RdBu', NULL, n = 5, reverse = TRUE)
+leaflet() %>% 
+  addProviderTiles(providers$CartoDB.Positron) %>% 
+  addPolygons(data = gwr_so2$SDF,
+              fillColor = ~pal_ro6(gwr_so2$SDF$d_ro6),
+              color = 'grey',
+              weight = 1,
+              fillOpacity = 0.8,
+              popup = popup_ro6,
+              highlight = highlightOptions(
+    weight = 4,
+    color = "#666",
+    fillOpacity = 0.3,
+    bringToFront = TRUE))
 
 
 
