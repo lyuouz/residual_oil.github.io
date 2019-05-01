@@ -599,7 +599,9 @@ leaflet() %>%
 popup_ro6 <- str_c('<b>GEOID: </b>', model_tract_sp$geoid, '<br>',
                '<b>Coefficient of #RO6 : </b>', round(gwr_so2$SDF$d_ro6, digits = 2))
 
-pal_ro6 <- colorQuantile('RdBu', NULL, n = 5, reverse = TRUE)
+bins <- getJenksBreaks(gwr_so2$SDF$d_ro6, 6)
+pal_ro6 <- colorBin("RdYlBu", domain = gwr_so2$SDF$d_ro6, bins = c(-0.39763151, -0.04608157, 0,  0.12670816,  0.21932648 , 0.47350907), reverse = TRUE)
+
 leaflet() %>% 
   addProviderTiles(providers$CartoDB.Positron) %>% 
   addPolygons(data = gwr_so2$SDF,
@@ -612,7 +614,9 @@ leaflet() %>%
     weight = 4,
     color = "#666",
     fillOpacity = 0.3,
-    bringToFront = TRUE))
+    bringToFront = TRUE)) %>% 
+  addLegend(pal = pal_ro6, values = gwr_so2$SDF$d_ro6, opacity = 0.7, title = NULL,
+    position = "bottomright")
 
 
 
