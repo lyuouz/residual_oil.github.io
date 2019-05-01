@@ -424,7 +424,7 @@ R^2^ is 0.177.
 
 plot the residuals. I expect them to be highly correlated.
 
-```{r}
+```{r warning = FALSE}
 model_tract_sp@data <- add_residuals(model_tract_sp@data, lm_so2)
 
 model_tract_sp@data$id <- rownames(model_tract_sp@data)
