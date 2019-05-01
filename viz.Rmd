@@ -22,6 +22,15 @@ library(ggspatial)
 library(leaflet)
 library(BAMMtools)
 library(plotly)
+library(modelr)
+
+library(RColorBrewer)
+library(classInt)
+library(ggsn)
+library(sp)
+library(spdep)
+library(spgwr)
+library(ggthemes)
 ```
 
 ## EDA and visualization
@@ -380,11 +389,161 @@ ng_change <- ggplot(tract_plot) +
 
 ```
 
+
+### Linear regression
+
+To make things easier for my analysis, I will use the subsetted dataset (2158 obs).
+
+```{r}
+model_tract_sp <- st_read(dsn = '/Users/zhanglvou/Desktop/GoMailman/research/number_boilers/fuel_data/data/so2_abs_lag', layer = 'model_so2_abs_lag') %>% 
+  filter(!is.na(so2_dff) & !is.na(s2_rdff) & !is.na(avg_yer)) %>% 
+  as_Spatial(.)
+
+
+```
+
+**SO2**
+
+```{r}
+model_tract_data <- model_tract_sp@data
+lm_so2 <- lm(so2_dff ~ d_ro2 + d_ro4 + d_ro6 + d_ng + d_d2 + bus + hvytrk + medtrk + car + avg_yer, data = model_tract_data)
+```
+
+check the coefficients of the linear regression model
+
+```{r}
+lm_so2 %>% 
+  broom::tidy()
+
+lm_so2 %>% 
+  broom::glance()
+```
+
+R^2^ is 0.177.
+
+plot the residuals. I expect them to be highly correlated.
+
+```{r}
+model_tract_sp@data <- add_residuals(model_tract_sp@data, lm_so2)
+
+model_tract_sp@data$id <- rownames(model_tract_sp@data)
+gpclibPermit()
+model_tract_sp.fort <- broom::tidy(model_tract_sp, region = "id")
+model_tract_sp_plot <- plyr::join(model_tract_sp.fort, model_tract_sp@data, by = "id")
+
+
+```
+
+
+
+```{r}
+ggplot(model_tract_sp_plot) +
+  aes(long, lat, group = group, fill = cut(model_tract_sp_plot$resid, breaks = c(-11, -1.58, -1.01, 0, 0.945, 9))) +
+  geom_polygon() +
+  coord_equal() +
+  scale_fill_brewer(name="Quantile", palette = "RdBu", direction = -1) +
+  labs(
+    title = 'Changes in natural gas'
+  ) +
+  north(model_tract_sp_plot) +
+  theme_bw() +
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank(),
+        axis.title.y=element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks.y=element_blank()
+        )
+
+
+
+
+
+```
+
+It's very clustered
+
+
 ### Spatial Durbin
 
 To run the durbin model, I need to exclude some missing rows in the dataset
 
 ```{r}
+neighbor <- poly2nb(model_tract_sp)
+list_weight <- nb2listw(neighbor)
+durbin_so2 <- lagsarlm(so2_dff ~ d_ro2 + d_ro4 + d_ro6 + d_ng + d_d2, data = model_tract_sp, Durbin = TRUE, list_weight)
+
+```
+
+Some neighbors and list of weights 
+
+```{r}
+model_tract_sp@data$d_so2_resid <- residuals(durbin_so2)
+```
+
+```{r}
+popup_dso2_resid <- str_c('<b>GEOID: </b>', model_tract_sp$geoid, '<br>',
+               '<b>Residual of spatial durbin: </b>', round(model_tract_sp$d_so2_resid, digits = 2))
+
+pal_dso2_resid <- colorQuantile('RdBu', NULL, n = 5, reverse = TRUE)
+
+leaflet() %>% 
+  addProviderTiles(providers$CartoDB.Positron) %>% 
+  addPolygons(data = model_tract_sp,
+              fillColor = ~pal_dso2_resid(model_tract_sp$d_so2_resid),
+              color = 'grey',
+              weight = 1,
+              fillOpacity = 0.8,
+              popup = popup_dso2_resid,
+              highlight = highlightOptions(
+    weight = 4,
+    color = "#666",
+    fillOpacity = 0.3,
+    bringToFront = TRUE))
+
+
+```
+
+```{r}
+moran_I <- function(x, y = NULL, W){
+  if(is.null(y)) y = x
+  
+  xp <- (x - mean(x, na.rm=T))/sd(x, na.rm=T)
+  yp <- (y - mean(y, na.rm=T))/sd(y, na.rm=T)
+  W[which(is.na(W))] <- 0
+  n <- nrow(W)
+  
+  global <- (xp%*%W%*%yp)/(n - 1)
+  local  <- (xp*W%*%yp)
+  
+  list(global = global, local  = as.numeric(local))
+}
+
+simula_moran <- function(x, y = NULL, W, nsims = 1000){
+  
+  if(is.null(y)) y = x
+  
+  n   = nrow(W)
+  IDs = 1:n
+  
+  xp <- (x - mean(x, na.rm=T))/sd(x, na.rm=T)
+  W[which(is.na(W))] <- 0
+  
+  global_sims = NULL
+  local_sims  = matrix(NA, nrow = n, ncol=nsims)
+  
+  ID_sample = sample(IDs, size = n*nsims, replace = T)
+  
+  y_s = y[ID_sample]
+  y_s = matrix(y_s, nrow = n, ncol = nsims)
+  y_s <- (y_s - apply(y_s, 1, mean))/apply(y_s, 1, sd)
+  
+  global_sims  <- as.numeric( (xp%*%W%*%y_s)/(n - 1) )
+  local_sims  <- (xp*W%*%y_s)
+  
+  list(global_sims = global_sims,
+       local_sims  = local_sims)
+}
 
 
 
@@ -392,7 +551,54 @@ To run the durbin model, I need to exclude some missing rows in the dataset
 ```
 
 
+### GWR
 
+```{r}
+bw_so2 <- gwr.sel(so2_dff ~ d_ro2 + d_ro4 + d_ro6 + d_ng + d_d2 + bus + hvytrk + medtrk + car + avg_yer, data = model_tract_sp, gweight = gwr.Gauss, verbose = TRUE)
+gwr_so2 <- gwr(so2_dff ~ d_ro2 + d_ro4 + d_ro6 + d_ng + d_d2 + bus + hvytrk + medtrk + car + avg_yer, data = model_tract_sp, bandwidth = bw_so2, gweight = gwr.Gauss)
+
+
+```
+
+```{r}
+model_tract_sp@data$gwr_r2 <- gwr_so2$SDF$localR2
+model_tract_sp@data$ro2_coeff <- gwr_so2$SDF$d_ro2
+model_tract_sp@data$ro4_coeff <- gwr_so2$SDF$d_ro4
+model_tract_sp@data$ng_coeff <- gwr_so2$SDF$d_ng
+model_tract_sp@data$d2_coeff <- gwr_so2$SDF$d_d2
+model_tract_sp@data$ro4_coeff <- gwr_so2$SDF$d_ro4
+model_tract_sp@data$gwr_residual <- gwr_so2$SDF$gwr.e
+
+```
+
+
+
+```{r}
+popup_localr2 <- str_c('<b>GEOID: </b>', model_tract_sp$geoid, '<br>',
+               '<b>Local R2: </b>', round(gwr_so2$SDF$localR2, digits = 2))
+
+pal <- colorQuantile('Greens', NULL, n = 5)
+
+leaflet() %>% 
+  addProviderTiles(providers$CartoDB.Positron) %>% 
+  addPolygons(data = gwr_so2$SDF,
+              fillColor = ~pal(gwr_so2$SDF$localR2),
+              color = 'grey',
+              weight = 1,
+              fillOpacity = 0.8,
+              popup = popup_localr2,
+              highlight = highlightOptions(
+    weight = 4,
+    color = "#666",
+    fillOpacity = 0.3,
+    bringToFront = TRUE))
+
+
+
+
+
+
+```
 
 
 

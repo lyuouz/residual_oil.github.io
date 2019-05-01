@@ -8,7 +8,7 @@ output:
 
 ## Background
 
-
+The project is based on the NYC Clean Heat Program. See [link](https://www.nyccleanheat.org/) here.
 
 
 ## Data Source
@@ -22,6 +22,10 @@ Air pollution data in New York City were obtained from [NYCCAS](http://data.city
 *  PM2.5 and SO2 concentrations were averaged at the census tract level using zonal statistics, resulting in 2167 data points.  
 *  The absolute and relative difference between concentrations in 2011 and 2016 were used as the outcome variables in the model.  
 *  Because the NYC Clean Heat Program was enforced in 2012, data in these two years served as comparison before and after policy implementation. 
+
+### Residual oil conversion
+
+The data comes from Mayor's Office.
 
 
 ## Analysis
